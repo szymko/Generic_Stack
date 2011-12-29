@@ -1,10 +1,11 @@
 with Ada.Finalization; use Ada.Finalization;
 generic
   type Item is private;
-  with function "<" (Left,Right : Item) return Boolean;
+  --swith function "<" (Left,Right : Item) return Boolean;
 package Generic_Stack is
 
   type Cell is private;
+  type Cash is private;
   type Stack_Array is array(Integer range<>) of Cell;
   type Stack_Array_Access is access all Stack_Array;
   type Stack is new Controlled with private;
@@ -40,12 +41,21 @@ private
        Previous:Integer;
        Next:Integer;
      end record;
+
+  type Cash is
+     record
+       Recent_Place:Integer;
+       Recent_Cell:Integer;
+     end record;
+
+
   type Stack is new Controlled with record
     Item_Array:Stack_array_access:=null;
     Head:Natural;
     Tail:Integer;
     Length:Natural;
     Capacity:Natural;
+    Last:Cash;
   end record;
 
 
