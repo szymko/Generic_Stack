@@ -1,9 +1,13 @@
-with Unchecked_Deallocation;
-with Ada.Text_IO, Ada.Integer_Text_IO; use Ada.Text_IO, Ada.Integer_Text_IO;
+with Unchecked_Deallocation, Ada.Containers.Generic_Array_Sort;
 
 package body Generic_Stack is
 
   procedure Free_Stack is new Unchecked_Deallocation(Stack_Array, Stack_Array_Access);
+
+  procedure Sort_Content_Array is new Ada.Containers.Generic_Array_Sort
+     (Index_Type   => Integer,
+      Element_Type => Item,
+      Array_Type   => Content_Array);
 
   procedure Initialize(S : in out Stack) is
   begin
@@ -13,7 +17,7 @@ package body Generic_Stack is
     S.Length:=0;
    -- S.Current:=0;
     S.Capacity:=Step;
-    S.Last.Recent_Place:=-1;
+    S.Last.Recent_Place:=-2;
     S.Last.Recent_Cell:=0;
   end Initialize;
 
@@ -67,62 +71,73 @@ package body Generic_Stack is
       S.Item_Array(0).Next:=1;
       --last member's next is a 'pointer' to the next item in list
     else
+    S.Length:=S.Length+1;
     S.Item_Array(S.Tail).Previous:=S.Item_Array(S.Head).Next;
     Temporary:=S.Item_Array(S.Head).Next;
-    S.Item_Array(S.Head).Next:=S.Item_Array(S.Head).Next+1;
-    S.Length:=S.Length+1;
     S.Item_Array(Temporary).Content:=I;
     S.Item_Array(Temporary).Previous:=-1;
     S.Item_Array(Temporary).Next:=S.Tail;
-  S.Tail:=Temporary;
+    S.Tail:=Temporary;
+    S.Item_Array(S.Head).Next:=S.Item_Array(S.Head).Next+1;
   end if;
   end Push_Bottom;
 
   --by X there is indicated absolute position in the array, where X should be put counting from tail.
   procedure Push_Anywhere(S : in out Stack; I : in Item; Index : in Integer) is
-    Temporary:Integer;
+    Temporary:Integer:=-1;
+    Temporary_Previous:Integer;
   begin
+     if Index = S.Last.Recent_Place then
+        Temporary:=S.Last.Recent_Cell;
+     elsif Index = S.Last.Recent_Place - 1 then
+        Temporary:=S.Item_Array(S.Last.Recent_Cell).Previous;
+        S.Last.Recent_Place:=Index;
+        S.Last.Recent_Cell:=Temporary;
+     elsif Index = S.Last.Recent_Place + 1 then
+        Temporary:=S.Item_Array(S.Last.Recent_Cell).Previous;
+        S.Last.Recent_Place:=Index;
+        S.Last.Recent_Cell:=Temporary;
+     end if;
     if S.Item_Array = null then
       raise Constraint_Error;
-    elsif Index > S.Length + 1 or Index < 0 then
+    elsif Index > S.Length or Index < 0 then
       raise Constraint_Error;
-    elsif Index = 0 then
-      Push_Bottom(S, I);
-    elsif Index = S.Length + 1 then
+    elsif Index = 1 or Index = 0 then
       Push_Front(S, I);
+    elsif Index = S.Length then
+      Push_Bottom(S, I);
     else
       if S.Length = S.Capacity then
         Adjust(S);
       end if;
       S.Length:=S.Length+1;
-      if Index = S.Last.Recent_Place then
-        Temporary:=S.Last.Recent_Cell;
-      elsif Index = S.Last.Recent_Place - 1 then
-        Temporary:=S.Item_Array(S.Last.Recent_Cell).Previous;
-        S.Last.Recent_Place:=Index;
-        S.Last.Recent_Cell:=Temporary;
-      elsif Index = S.Last.Recent_Place + 1 then
-        Temporary:=S.Item_Array(S.Last.Recent_Cell).Next;
-        S.Last.Recent_Place:=Index;
-        S.Last.Recent_Cell:=Temporary;
-      else
-        Temporary:=S.Tail;
-        for i in 2..Index loop
-          Temporary:=S.Item_Array(Temporary).Next;
+
+      if Temporary = -1 then
+        Temporary:=S.Head;
+        for i in 2..Index-1 loop
+          Temporary:=S.Item_Array(Temporary).Previous;
         end loop;
         S.Last.Recent_Place:=Index;
         S.Last.Recent_Cell:=Temporary;
       end if;
 
-      S.Item_Array(S.Item_array(S.Head).Next).Content:=I;
-      --rather awfull looking insertion of a new content to a new cell
-      S.Item_Array(S.Item_array(S.Head).Next).Previous:=S.Item_array(Temporary).Previous;
-      S.Item_Array(S.item_array(S.Head).Next).Next:=Temporary;
-      --for the "moved" piece the only thing that changes is previous 'pointer'
-      S.Item_Array(Temporary).Previous:=S.Item_array(S.Head).Next;
-      if Index = 1 then
-        S.Tail:=S.Item_array(S.Head).Next;
-      end if;
+      --making temporary copy of the information of previous
+      --place, which was before temporary
+      Temporary_Previous:=S.Item_Array(Temporary).Previous;
+
+      --putting content of item to the end of the table
+      S.Item_Array(S.Item_Array(S.Head).Next).Content:=I;
+      --making cell at the end point at the one before
+      S.Item_Array(S.Item_Array(S.Head).Next).Previous:=Temporary_Previous;
+      --making the chosen cell point at the one ahead
+      S.Item_Array(S.Item_Array(S.Head).Next).Next:=Temporary;
+
+      --making previous cell point at the chosen one
+      S.Item_Array(Temporary_Previous).Next:=S.Item_Array(S.Head).Next;
+      --making temporary point at the new previous one
+      S.Item_Array(Temporary).Previous:=S.Item_Array(S.Head).Next;
+      --incrementing next
+
       S.Item_Array(S.Head).Next:=S.Item_Array(S.Head).Next + 1; --adjusting length of a list by placing next 'pointer' one cell to the right
     end if;
   end Push_Anywhere;
@@ -149,7 +164,6 @@ package body Generic_Stack is
 
   procedure Pop_Anywhere(S : in out Stack; I : out Item; Index : in Integer) is
     Temporary : Integer;
-    Temp_Next:Integer;
   begin
     if S.Item_Array = null then
       raise Constraint_Error;
@@ -165,18 +179,7 @@ package body Generic_Stack is
       for i in 2..Index loop
         Temporary:=S.Item_Array(Temporary).Previous;
       end loop;
-      I:=S.Item_Array(Temporary).Content;
-      --inserting head in the place of the old cell while keeping list
-      --in order
-      S.Item_Array(S.Item_Array(Temporary).Previous).Next:=S.Item_Array(Temporary).Next;
-      Temp_Next:=S.Item_Array(Temporary).Next;
-      S.Item_Array(S.Item_Array(Temporary).Next).Previous:=S.Item_Array(Temporary).Previous;
-      S.Item_Array(S.Item_Array(S.Head).Previous).Next:=Temporary;
-      S.Item_Array(Temporary).Content:=S.Item_Array(S.Head).Content;
-      S.Item_Array(Temporary).Previous:=S.Item_Array(S.Head).Previous;
-      S.Item_Array(Temporary).Next:=S.Head;
-      S.Head:=Temporary;
-      Temporary:=Temp_Next;
+      Delete_Cell(S, Temporary);
     end if;
   end Pop_Anywhere;
 
@@ -184,7 +187,6 @@ package body Generic_Stack is
     Temporary:Integer:=S.Head;
     Iterator:Integer:=1;
     Counter:Integer:=0;
-    Temp_Next:Integer;
   begin
     if S.Item_Array = null then
       raise Constraint_Error;
@@ -195,24 +197,13 @@ package body Generic_Stack is
           S.Tail:=S.Item_Array(S.Tail).Next;
           Temporary:=S.Tail;
           Counter:=Counter+1;
-          Iterator:=Iterator+1;
         elsif Temporary = S.Head then
           S.Head := S.Item_Array(S.Head).Previous;
           Temporary:=S.Head;
           Counter:=Counter+1;
-          Iterator:=Iterator+1;
         else
-          S.Item_Array(S.Item_Array(Temporary).Previous).Next:=S.Item_Array(Temporary).Next;
-          Temp_Next:=S.Item_Array(Temporary).Next;
-          S.Item_Array(S.Item_Array(Temporary).Next).Previous:=S.Item_Array(Temporary).Previous;
-          S.Item_Array(S.Item_Array(S.Head).Previous).Next:=Temporary;
-          S.Item_Array(Temporary).Content:=S.Item_Array(S.Head).Content;
-          S.Item_Array(Temporary).Previous:=S.Item_Array(S.Head).Previous;
-          S.Item_Array(Temporary).Next:=S.Head;
-          S.Head:=Temporary;
-          Temporary:=Temp_Next;
+          Delete_Cell(S, Temporary);
           Counter:=Counter+1;
-          Iterator:=Iterator+1;
         end if;
       else
         Temporary:=S.Item_Array(Temporary).Previous;
@@ -226,7 +217,6 @@ package body Generic_Stack is
     Temporary:Integer:=S.Head;
     Iterator:Integer:=1;
     Counter:Integer:=0;
-    Temp_Next:Integer;
   begin
     if S.Item_Array = null then
       raise Constraint_Error;
@@ -234,22 +224,13 @@ package body Generic_Stack is
     while not (Iterator > S.Length) and Counter = 0 loop
       if(S.Item_Array(Temporary).Content = I) then
         if(S.Item_Array(Temporary).Previous = -1) then
-          Put("Powinienem usunac ostatni");
           S.Tail:=S.Item_Array(S.Tail).Next;
           Counter:=Counter+1;
         elsif Temporary = S.Head then
           S.Head := S.Item_Array(S.Head).Previous;
           Counter:=Counter+1;
         else
-          S.Item_Array(S.Item_Array(Temporary).Previous).Next:=S.Item_Array(Temporary).Next;
-          Temp_Next:=S.Item_Array(Temporary).Next;
-          S.Item_Array(S.Item_Array(Temporary).Next).Previous:=S.Item_Array(Temporary).Previous;
-          S.Item_Array(S.Item_Array(S.Head).Previous).Next:=Temporary;
-          S.Item_Array(Temporary).Content:=S.Item_Array(S.Head).Content;
-          S.Item_Array(Temporary).Previous:=S.Item_Array(S.Head).Previous;
-          S.Item_Array(Temporary).Next:=S.Head;
-          S.Head:=Temporary;
-          Temporary:=Temp_Next;
+          Delete_Cell(S, Temporary);
           Counter:=Counter+1;
         end if;
       else
@@ -268,6 +249,8 @@ package body Generic_Stack is
     S.Length:=0;
     S.Head:=0;
     S.Tail:=0;
+    S.Last.Recent_Place:=-2;
+    S.Last.Recent_Cell:=0;
   end Remove_All;
 
   procedure RM_Front(S : in out Stack) is
@@ -305,13 +288,7 @@ package body Generic_Stack is
       for i in 2..Index loop
         Temporary:=S.Item_Array(Temporary).Next;
       end loop;
-      --inserting head in the place of the old cell while keeping list
-      --in order
-      S.Item_Array(S.Item_Array(Temporary).Previous).Next:=S.Item_Array(Temporary).Next;
-      S.Item_Array(S.Item_Array(S.Head).Previous).Next:=Temporary;
-      S.Item_Array(Temporary):=S.Item_Array(S.Head);
-      S.Item_Array(Temporary).Next:=S.Head;
-      S.Head:=Temporary;
+      Delete_Cell(S,Temporary);
     end if;
   end RM_Anywhere;
 
@@ -356,6 +333,53 @@ package body Generic_Stack is
   begin
     Free_Stack(S.Item_Array);
   end Finalize;
+
+  procedure Sort(S : in out Stack) is
+    temp_array:Content_Array(1..S.Length);
+    temp_pr:Integer:=S.Head;
+  begin
+    if S.Item_Array = null then
+      raise Constraint_Error;
+    end if;
+    for i in temp_array'Range loop
+      temp_array(i):=S.Item_Array(temp_pr).Content;
+      temp_pr:=S.Item_Array(temp_pr).Previous;
+    end loop;
+    Sort_Content_Array(temp_array);
+    for i in temp_array'Range loop
+      S.Item_Array(i).Content:=temp_array(i);
+      S.Item_Array(i).Previous:=i-1;
+      S.Item_Array(i).Next:=i+1;
+    end loop;
+    S.Head:=S.Length;
+    S.Tail:=0;
+    S.Last.Recent_Place:=-2;
+  end Sort;
+
+  procedure Delete_Cell(S : in out Stack; Temporary :in out Integer) is
+    Temp_previous:Integer;
+  begin
+         --passing 'pointer' to cell ahead to temporary variable
+          Temp_Previous:=S.Item_Array(Temporary).Previous;
+          --making a cell behind removed point at the cell in front of removed
+          S.Item_Array(S.Item_Array(Temporary).Previous).Next:=S.Item_Array(Temporary).Next;
+          --completing the linkage
+          S.Item_Array(S.Item_Array(Temporary).Next).Previous:=S.Item_Array(Temporary).Previous;
+          --Moving the top of the stack to the empty place
+          --1.making the linkages between the top and the rest.
+          --a)linking stack with the top:
+          S.Item_Array(S.Item_Array(S.Head).Previous).Next:=Temporary;
+          --b)and the top with the list:
+          S.Item_Array(Temporary).Previous:=S.Item_Array(S.Head).Previous;
+          --c)link to the next top cell
+          S.Item_Array(Temporary).Next:=S.Head;
+          --2.finally switching the contents
+          S.Item_Array(Temporary).Content:=S.Item_Array(S.Head).Content;
+          --3.moving the pointer to the head
+          S.Head:=Temporary;
+          --switching the temporary var to the next element of stack
+          Temporary:=Temp_Previous;
+  end Delete_Cell;
 
   end Generic_Stack;
 

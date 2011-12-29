@@ -1,15 +1,33 @@
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--                          Generic_Stack                                     --
+--
+-- An attempt of creating time efficient stack, which combines the features   --
+-- both an array(faster, rare allocation and reallocation of memory) with the --
+-- ones of a double-linked list - mainly keeping data in order. Also there is --
+-- used an idea of efficient array splicing, presented at                     --
+-- http://cjcat.blogspot.com/2010/05/stardust-v11-with-fast-array-splicing_21.--
+-- html.                                                                      --
+--                                                                            --
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--                      sobanski.s@gmail.com                                  --
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 with Ada.Finalization; use Ada.Finalization;
 generic
   type Item is private;
-  --swith function "<" (Left,Right : Item) return Boolean;
+  with function "<" (Left,Right : Item) return Boolean is <>;
 package Generic_Stack is
 
   type Cell is private;
   type Cash is private;
+  type Content_Array is array(Integer range<>) of Item;
   type Stack_Array is array(Integer range<>) of Cell;
   type Stack_Array_Access is access all Stack_Array;
   type Stack is new Controlled with private;
-  --function "="(Left : in Stack; Right : in Stack) return Boolean;
 
   Step:constant:=1_000_000;
 
@@ -25,10 +43,9 @@ package Generic_Stack is
   procedure RM_Front(S : in out Stack);
   procedure RM_Bottom(S : in out Stack);
   procedure RM_Anywhere(S : in out Stack; Index : in Integer);
-  --procedure Sort(S : in out Stack);
+  procedure Sort(S : in out Stack);
   procedure Initialize(S : in out Stack);
 
-  --function Is_Empty(S : in Stack) return Boolean;
   function Top(S : in Stack) return Item;
   function Bottom(S : in Stack) return Item;
   function Anywhere(S : in Stack; Index : in Integer) return Item;
@@ -61,6 +78,7 @@ private
 
   procedure Adjust(S : in out Stack);
   procedure Finalize(S : in out Stack);
+  procedure Delete_Cell(S : in out Stack; Temporary :in out Integer);
 
 
 end Generic_Stack;

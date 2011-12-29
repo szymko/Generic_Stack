@@ -21,11 +21,14 @@ procedure list_tester is
   time_and_date  : Time;
 begin
   Int_IO.Open(DataIF,Int_IO.In_File,"Test_Data/liczby.dat");
-  Size:= 1_000_000;
+  Size:= 1_000_000; --znamy z gory wielkosc pliku testowego
   Cnt:=0;
 
   Initialize(L1);
-  --Initialize(L2);
+  Initialize(L2);
+
+  time_and_date := Clock;
+  Split(time_and_date, year, month, day, start);
 
   for i in 1 .. 1_000_000 loop
     Int_IO.Read(DataIF,X);
@@ -34,35 +37,30 @@ begin
     elsif(Cnt>Size/3) then
       Push_Front(L1,X);
     else
-		--   3.  dodanie elementu we wskazane miejsce, indeks
-	Push_Anywhere(L1,X, Cnt/3);
+    Push_Anywhere(L1,X, Cnt/3);
     end if;
     Cnt:= Cnt + 1;
   end loop;
   Int_IO.Close(DataIF);
-  Put("Czytanie skonczone ");
-  time_and_date := Clock;
-  Split(time_and_date, year, month, day, start);
+  Put_Line("Czytanie L1 skonczone.");
+  Sort(L1);
 
-	--L1.Sort;
   for idx in 1..3000 loop
 
     RM_Bottom(L1);
 
     RM_Front(L1);
-		--
+
     RM_Anywhere(L1,idx);
     null;
   end loop;
-  Put("Usuwanie skonczone");
   Remove_Each(L1,Top(L1));
   Remove_First(L1,Bottom(L1));
-
-
   Remove_Each(L1, Anywhere(L1,2));
-
+  Put_Line("Usuwanie z L1 skonczone");
+  Put("Liczba elementow w L1:");
   Put(How_many(L1));
-
+  New_Line;
   for idx in 1..3000 loop
 
     Pop_Front(L1,X);
@@ -73,44 +71,57 @@ begin
     null;
   end loop;
 
-  finalize(L1);
+  Remove_All(L1);
+  Finalize(L1);
   Put_Line("L1-gotowe");
+
+  Cnt:=0;
+  Str_8_IO.Open(DataSF,Str_8_IO.In_File,"Test_Data/napisy.dat");
+  Size:= 100_000;
+  for i in 1 .. 100_000 loop
+    Str_8_IO.Read(DataSF,s);
+    if (Cnt>2*Size/3) then
+	Push_Bottom(L2,s);
+    elsif(Cnt>Size/3) then
+      Push_Front(L2,s);
+    else
+    Push_Anywhere(L2,s, Cnt/3);
+    end if;
+    Cnt:= Cnt + 1;
+  end loop;
+  Str_8_IO.Close(DataSF);
+  Put_Line("Czytanie L2 skonczone.");
+  Sort(L2);
+
+  for idx in 1..2000 loop
+    RM_Bottom(L2);
+    RM_Front(L2);
+    RM_Anywhere(L2, idx);
+    null;
+  end loop;
+  Remove_Each(L2,Top(L2));
+  Remove_First(L2,Bottom(L2));
+  Remove_Each(L2, Anywhere(L2,2));
+  Put_Line("Usuwanie z L2 skonczone");
+  Put("Liczba elementow w L2:");
+  Put(How_many(L2));
+  New_Line;
+  for idx in 1..2000 loop
+
+    Pop_Front(L2,s);
+
+    Pop_Bottom(L2,s);
+
+    Pop_Anywhere(L2,s,idx);
+    null;
+  end loop;
+
+  Remove_All(L2);
+  Finalize(L2);
+  Put_Line("L2-gotowe");
   time_and_date := Clock;
   Split(time_and_date, year, month, day, seconds);
-
-  Put_Line("Wykonanie zajelo ");
+  Put("Wykonanie zajelo ");
   Put(Seconds - Start, 8, 3, 0);
-	Cnt:=0;
-	Str_8_IO.Open(DataSF,Str_8_IO.In_File,"Test_Data/napisy.dat");
-	Size:= 100_000;
-	while not Str_8_IO.End_Of_File(DataSF) loop
-		Str_8_IO.Read(DataSF,s);
-		if (Cnt>2*Size/3) then
-
-			null;
-		elsif (Cnt > Size/3) then
-
-			null;
-		else
-
-			null;
-		end if;
-		Cnt:= Cnt + 1;
-	end loop;
-	Str_8_IO.Close(DataSF);
-
-
-	--for idx in 1..2000 loop
-
-		--null;
-	--end loop;
-	--
-	--for idx in 1..2000 loop
-
-	--	null;
-	--end loop;
-
-
-	Put_Line("L2-gotowe");
-
+  Put(" sekund.");
 end list_tester;
